@@ -21,3 +21,9 @@ Files:
 
 For GitHub Pages:
 Upload index.html and the assets folder to a public repository, then enable Pages.
+
+
+Sound effects added:
+- assets/click.mp3 — plays when a block is placed on the board
+- assets/fail.mp3 — plays when a block cannot be placed
+- assets/fanfare.mp3 — plays when a level is completed

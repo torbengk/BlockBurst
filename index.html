@@ -33,6 +33,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px}h1
 </head>
 <body>
 <audio id="music" src="assets/music.mp3" loop preload="auto"></audio>
+<audio id="clickSound" src="assets/click.mp3" preload="auto"></audio>
+<audio id="failSound" src="assets/fail.mp3" preload="auto"></audio>
+<audio id="fanfareSound" src="assets/fanfare.mp3" preload="auto"></audio>
 
 <div id="splash">
   <div class="splash-art"></div>
@@ -57,8 +60,18 @@ header{display:flex;align-items:center;justify-content:space-between;gap:10px}h1
 
 <script>
 (()=>{const SIZE=8,MAX_LEVEL=100,MINI=matchMedia("(max-width:380px)").matches?18:22;const COLORS=["#2E90FA","#9B5CFF","#F04438","#12B76A","#F79009","#EE46BC","#06AED4"];const SHAPES=[[[1]],[[1,1]],[[1],[1]],[[1,1,1]],[[1],[1],[1]],[[1,1,1,1]],[[1],[1],[1],[1]],[[1,1],[1,1]],[[1,0],[1,1]],[[0,1],[1,1]],[[1,1],[1,0]],[[1,1],[0,1]],[[1,1,1],[0,1,0]],[[0,1,0],[1,1,1]],[[1,1,0],[0,1,1]],[[0,1,1],[1,1,0]],[[1,0,0],[1,1,1]],[[0,0,1],[1,1,1]],[[1,1,1],[1,0,0]],[[1,1,1],[0,0,1]],[[1,1,1,1,1]],[[1],[1],[1],[1],[1]],[[1,1,1],[1,1,1]],[[1,1],[1,1],[1,1]],[[0,1,0],[1,1,1],[0,1,0]],[[1,0,1],[1,1,1]],[[1,1,1],[1,0,1]]];
-const $=id=>document.getElementById(id),boardEl=$("board"),trayEl=$("tray"),messageEl=$("message"),levelText=$("levelText"),scoreText=$("scoreText"),goalText=$("goalText"),progressEl=$("progress"),menu=$("menu"),modal=$("modal"),modalTitle=$("modalTitle"),modalText=$("modalText"),modalAction=$("modalAction"),levelGrid=$("levelGrid"),music=$("music"),musicBtn=$("musicBtn");let board=[],pieces=[],level=Number(localStorage.getItem("block_burst_level")||1),unlocked=Number(localStorage.getItem("block_burst_unlocked")||1),score=0,goal=0,drag=null,ghost=null,musicOn=localStorage.getItem("block_burst_music")==="off"?false:true;
-music.volume=.45;musicBtn.textContent=musicOn?"Music: On":"Music: Off";
+const $=id=>document.getElementById(id),boardEl=$("board"),trayEl=$("tray"),messageEl=$("message"),levelText=$("levelText"),scoreText=$("scoreText"),goalText=$("goalText"),progressEl=$("progress"),menu=$("menu"),modal=$("modal"),modalTitle=$("modalTitle"),modalText=$("modalText"),modalAction=$("modalAction"),levelGrid=$("levelGrid"),music=$("music"),musicBtn=$("musicBtn"),clickSound=$("clickSound"),failSound=$("failSound"),fanfareSound=$("fanfareSound");let board=[],pieces=[],level=Number(localStorage.getItem("block_burst_level")||1),unlocked=Number(localStorage.getItem("block_burst_unlocked")||1),score=0,goal=0,drag=null,ghost=null,musicOn=localStorage.getItem("block_burst_music")==="off"?false:true;
+music.volume=.45;
+clickSound.volume=.65;
+failSound.volume=.7;
+fanfareSound.volume=.8;
+musicBtn.textContent=musicOn?"Music: On":"Music: Off";
+function playSfx(sound){
+  try {
+    sound.currentTime = 0;
+    sound.play().catch(()=>{});
+  } catch(e) {}
+}
 const clone=o=>JSON.parse(JSON.stringify(o)),goalFor=n=>240+n*85+Math.floor(Math.pow(n,1.2)*25),cellsOf=(shape,row,col)=>{const cells=[];for(let r=0;r<shape.length;r++)for(let c=0;c<shape[r].length;c++)if(shape[r][c])cells.push({r:row+r,c:col+c});return cells};
 function playMusic(){if(musicOn){music.play().catch(()=>{})}}function setMusic(on){musicOn=on;localStorage.setItem("block_burst_music",on?"on":"off");musicBtn.textContent=on?"Music: On":"Music: Off";if(on)playMusic();else music.pause()}
 function startLevel(n){level=Math.max(1,Math.min(MAX_LEVEL,n));localStorage.setItem("block_burst_level",level);score=0;goal=goalFor(level);board=Array.from({length:SIZE},()=>Array(SIZE).fill(null));addStartingBlocks();pieces=makePieces();render();setMessage(`Level ${level}: reach ${goal} points.`)}
@@ -71,7 +84,7 @@ function createPiece(piece,index){const el=document.createElement("div");el.clas
 function createGhost(piece){const g=document.createElement("div");g.className="ghost";g.style.gridTemplateColumns=`repeat(${piece.shape[0].length}, ${MINI}px)`;g.style.setProperty("--piece-color",piece.color);piece.shape.flat().forEach(v=>{const m=document.createElement("div");m.className="mini "+(v?"on":"off");g.appendChild(m)});document.body.appendChild(g);return g}
 function beginDrag(e){e.preventDefault();playMusic();const index=Number(e.currentTarget.dataset.index);if(!pieces[index])return;drag={index,piece:pieces[index],source:e.currentTarget};drag.source.classList.add("dragging");ghost=createGhost(drag.piece);moveDrag(e);window.addEventListener("pointermove",moveDrag,{passive:false});window.addEventListener("pointerup",endDrag,{once:true});window.addEventListener("pointercancel",cancelDrag,{once:true})}
 function moveDrag(e){if(!drag)return;e.preventDefault();const x=e.clientX,y=e.clientY-54;if(ghost)ghost.style.transform=`translate3d(${x}px,${y}px,0) translate(-50%,-50%) scale(1.08)`;const pos=boardPosition(x,y,drag.piece.shape);if(!pos){renderBoard();return}const preview=cellsOf(drag.piece.shape,pos.r,pos.c);renderBoard(preview,canPlace(drag.piece.shape,pos.r,pos.c))}
-function endDrag(e){window.removeEventListener("pointermove",moveDrag);if(!drag)return;const pos=boardPosition(e.clientX,e.clientY-54,drag.piece.shape),current=drag;cleanupDrag();if(pos&&canPlace(current.piece.shape,pos.r,pos.c)){placePiece(current.piece,pos.r,pos.c);pieces[current.index]=null;afterMove()}else{setMessage("That piece does not fit there.",true);render()}}
+function endDrag(e){window.removeEventListener("pointermove",moveDrag);if(!drag)return;const pos=boardPosition(e.clientX,e.clientY-54,drag.piece.shape),current=drag;cleanupDrag();if(pos&&canPlace(current.piece.shape,pos.r,pos.c)){placePiece(current.piece,pos.r,pos.c);playSfx(clickSound);pieces[current.index]=null;afterMove()}else{playSfx(failSound);setMessage("That piece does not fit there.",true);render()}}
 function cancelDrag(){cleanupDrag();render()}function cleanupDrag(){if(drag?.source)drag.source.classList.remove("dragging");if(ghost)ghost.remove();ghost=null;drag=null}
 function boardPosition(x,y,shape){const rect=boardEl.getBoundingClientRect();if(x<rect.left||x>rect.right||y<rect.top||y>rect.bottom)return null;const s=rect.width/SIZE;return{c:Math.floor((x-rect.left)/s)-Math.floor(shape[0].length/2),r:Math.floor((y-rect.top)/s)-Math.floor(shape.length/2)}}
 function canPlace(shape,row,col){return cellsOf(shape,row,col).every(({r,c})=>r>=0&&c>=0&&r<SIZE&&c<SIZE&&!board[r][c])}
@@ -79,7 +92,7 @@ function placePiece(piece,row,col){const cells=cellsOf(piece.shape,row,col);cell
 function afterMove(){const cleared=clearLines();if(cleared>0){const bonus=cleared*cleared*90+cleared*level*4;score+=bonus;setMessage(`Cleared ${cleared} line${cleared>1?"s":""}! +${bonus}`)}else setMessage("Good move.");if(score>=goal){winLevel();return}if(pieces.every(p=>!p))pieces=makePieces();render();setTimeout(()=>{if(!hasAnyMove())loseLevel()},80)}
 function clearLines(){const rows=[],cols=[];for(let r=0;r<SIZE;r++)if(board[r].every(Boolean))rows.push(r);for(let c=0;c<SIZE;c++)if(board.every(row=>row[c]))cols.push(c);rows.forEach(r=>{for(let c=0;c<SIZE;c++)board[r][c]=null});cols.forEach(c=>{for(let r=0;r<SIZE;r++)board[r][c]=null});return rows.length+cols.length}
 function hasAnyMove(){return pieces.filter(Boolean).some(piece=>{for(let r=-5;r<SIZE;r++)for(let c=-5;c<SIZE;c++)if(canPlace(piece.shape,r,c))return true;return false})}
-function winLevel(){unlocked=Math.max(unlocked,Math.min(MAX_LEVEL,level+1));localStorage.setItem("block_burst_unlocked",unlocked);modalTitle.textContent=level===MAX_LEVEL?"You Beat All 100 Levels!":"Level Complete!";modalText.textContent=level===MAX_LEVEL?`Final score: ${score}. You finished the full game.`:`You beat Level ${level}. Next: Level ${level+1}.`;modalAction.textContent=level===MAX_LEVEL?"Play Again":"Next Level";modalAction.onclick=()=>{modal.classList.remove("show");startLevel(level===MAX_LEVEL?1:level+1)};modal.classList.add("show")}
+function winLevel(){playSfx(fanfareSound);unlocked=Math.max(unlocked,Math.min(MAX_LEVEL,level+1));localStorage.setItem("block_burst_unlocked",unlocked);modalTitle.textContent=level===MAX_LEVEL?"You Beat All 100 Levels!":"Level Complete!";modalText.textContent=level===MAX_LEVEL?`Final score: ${score}. You finished the full game.`:`You beat Level ${level}. Next: Level ${level+1}.`;modalAction.textContent=level===MAX_LEVEL?"Play Again":"Next Level";modalAction.onclick=()=>{modal.classList.remove("show");startLevel(level===MAX_LEVEL?1:level+1)};modal.classList.add("show")}
 function loseLevel(){modalTitle.textContent="No Moves Left";modalText.textContent=`You scored ${score} / ${goal} on Level ${level}.`;modalAction.textContent="Try Again";modalAction.onclick=()=>{modal.classList.remove("show");startLevel(level)};modal.classList.add("show")}
 function setMessage(text,bad=false){messageEl.textContent=text;messageEl.style.color=bad?"var(--bad)":"var(--muted)"}
 function buildLevelGrid(){levelGrid.innerHTML="";for(let i=1;i<=MAX_LEVEL;i++){const b=document.createElement("button");b.className="level-btn"+(i>unlocked?" locked":"");b.textContent=i;b.disabled=i>unlocked;b.onclick=()=>{menu.classList.remove("show");startLevel(i);playMusic()};levelGrid.appendChild(b)}}
